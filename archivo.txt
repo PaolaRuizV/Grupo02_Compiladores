@@ -1,0 +1,30 @@
+ESTUDIANTE Omar_2313215 {
+    nombre: "Omar Morales",
+    carrera: "Ingeniería de Software",
+    CONTACTO: { email: "omar@usil.pe", telefono: "999888777" }
+};
+
+CV CV_Omar_Senior {
+    REFERENCIA_ESTUDIANTE: Omar_2313215,
+    EXPERIENCIA_LISTA: [
+        EXPERIENCIA {
+            empresa: "Tech Labs",
+            puesto: "Líder de Proyecto",
+            LOGROS_LISTA: ["Analizador sintáctico", "Diseño de Lenguajes"] 
+        }
+    ]
+};
+
+OFERTA Senior_Dev_001 {
+    puesto: "Ingeniero Senior",
+    PALABRAS_CLAVE: ["Analizador sintáctico", "Diseño de Lenguajes", "Algoritmos"],
+    sueldo_min: 6000
+};
+
+MOSTRAR CV_Omar_Senior;
+
+EVALUAR CV CV_Omar_Senior PARA OFERTA Senior_Dev_001;
+
+SI CV_Omar_Senior.LOGROS CONTIENE Senior_Dev_001.PALABRAS_CLAVE
+ENTONCES
+    GENERAR CV CV_Omar_Senior PARA OFERTA Senior_Dev_001 EN FORMATO JSON_ATS_v2;
