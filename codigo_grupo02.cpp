@@ -606,7 +606,7 @@ void crearCVVacio(const string &cvId) {
     cout << "CV " << cvId << " creado con campos vacios.\n";
 }
 
-// ------- NUEVO: generar HTML en vez de TXT ---------
+// ------- HTML ATS (se mantiene igual) ---------
 
 void generarCVHtml(const string &cvId, const string &ofId) {
     string nombreArchivo = cvId + string("_ATS.html");
@@ -717,7 +717,7 @@ void generarCVHtml(const string &cvId, const string &ofId) {
         out << "<p>None</p>\n\n";
     }
 
-    // EXPERIENCIA
+    // EXPERIENCIA LABORAL
     out << "<div class=\"section-title\">EXPERIENCIA</div>\n";
     out << "<hr>\n\n";
 
@@ -820,42 +820,120 @@ void evaluarCompatibilidadCVOferta(const string &cvId, const string &ofId) {
     }
 }
 
+// ------ NUEVO: mostrar CV en formato CV consola + mostrar PT -------
+
 void mostrarCV(const string &cvId) {
-    cout << "CV: " << cvId << "\n";
     if (!cvs.count(cvId)) {
         cout << "CV no encontrado.\n";
         return;
     }
+
+    // Obtener estudiante
+    string cod = extraerCodigoDesdeCV(cvId);
+    const Estudiante* est = nullptr;
+    auto itEst = estudiantes.find(cod);
+    if (itEst != estudiantes.end()) {
+        est = &itEst->second;
+    }
+
     auto &cv = cvs[cvId];
 
-    if (cv.educaciones.empty())
-        cout << "No se ha registrado educacion\n";
-    else {
-        cout << "Educacion:\n";
+    // Nombre
+    cout << (est ? est->nombre : cvId) << "\n";
+
+    // Contacto
+    if (est) {
+        bool printed = false;
+        if (!est->correo.empty()) {
+            cout << est->correo;
+            printed = true;
+        }
+        if (!est->telefono.empty()) {
+            if (printed) cout << " | ";
+            cout << est->telefono;
+            printed = true;
+        }
+        if (printed) cout << "\n";
+    }
+    cout << "EDUCACION\n";
+
+    // EDUCACION
+    if (cv.educaciones.empty()) {
+        cout << "No se ha registrado educacion\n\n";
+    } else {
         for (auto &edId : cv.educaciones) {
-            auto &ed = educaciones[edId];
-            cout << "  - " << ed.institucion << " | " << ed.campo
-                 << " | " << ed.fechainicio << " - " << ed.fechafin << "\n";
+            auto itEd = educaciones.find(edId);
+            if (itEd == educaciones.end()) continue;
+            auto &ed = itEd->second;
+            cout << ed.institucion << " | " << ed.campo
+                 << " | " << ed.fechainicio << " - "
+                 << (ed.fechafin.empty() ? "Actual" : ed.fechafin) << "\n";
+        }
+        cout << "\n";
+    }
+
+    // EXPERIENCIA
+    cout << "EXPERIENCIA\n";
+    if (cv.experiencias.empty()) {
+        cout << "No se ha registrado experiencia\n\n";
+    } else {
+        for (auto &exId : cv.experiencias) {
+            auto itEx = experiencias.find(exId);
+            if (itEx == experiencias.end()) continue;
+            auto &ex = itEx->second;
+            cout << "- " << ex.empresa << " | " << ex.puesto
+                 << " | " << ex.fechainicio << " - "
+                 << (ex.fechafin.empty() ? "Actual" : ex.fechafin) << "\n";
+        }
+        cout << "\n";
+    }
+
+    // HABILIDADES (conjunto unico)
+    set<string> habCV;
+    for (auto &exId : cv.experiencias) {
+        auto itEx = experiencias.find(exId);
+        if (itEx == experiencias.end()) continue;
+        for (auto &h : itEx->second.habilidades) {
+            habCV.insert(h);
         }
     }
 
-    if (cv.experiencias.empty())
-        cout << "No se ha registrado experiencia\n";
-    else {
-        cout << "Experiencia:\n";
-        for (auto &exId : cv.experiencias) {
-            auto &ex = experiencias[exId];
-            cout << "  - " << ex.empresa << " | " << ex.puesto
-                 << " | " << ex.fechainicio << " - " << ex.fechafin << "\n";
-            if (!ex.habilidades.empty()) {
-                cout << "    Habilidades: ";
-                for (size_t i = 0; i < ex.habilidades.size(); ++i) {
-                    if (i) cout << ", ";
-                    cout << ex.habilidades[i];
-                }
-                cout << "\n";
-            }
+    cout << "HABILIDADES\n";
+    if (habCV.empty()) {
+        cout << "No se han registrado habilidades\n";
+    } else {
+        for (auto &h : habCV) {
+            cout << "- " << h << "\n";
         }
+    }
+}
+
+// mostrar PT_...
+
+void mostrarPostulacion(const string &ptId) {
+    cout << "Postulaciones \n";
+
+    auto it = postulaciones.find(ptId);
+    if (it == postulaciones.end()) {
+        cout << "No se ha encontrado la postulacion.\n";
+        return;
+    }
+
+    auto &p = it->second;
+    if (p.ofertas.empty()) {
+        cout << "No se han asignado ofertas a esta postulacion.\n";
+        return;
+    }
+
+    cout << "Ofertas asignadas:\n";
+    for (const auto &ofId : p.ofertas) {
+        cout << "- " << ofId;
+        auto itOf = ofertas.find(ofId);
+        if (itOf != ofertas.end()) {
+            cout << " | " << itOf->second.empresa
+                 << " | " << itOf->second.puesto;
+        }
+        cout << "\n";
     }
 }
 
@@ -1220,9 +1298,17 @@ private:
 
     void sentenciaMostrar() {
         consumir(T_MOSTRAR, "Se esperaba 'mostrar'");
-        string cvId = obtenerIdentificador();
+        string id = obtenerIdentificador();
         consumir(PUNTO_Y_COMA, "Se esperaba ';' al final de 'mostrar'");
-        mostrarCV(cvId);
+
+        if (empiezaCon(id, "CV_")) {
+            mostrarCV(id);
+        } else if (empiezaCon(id, "PT_")) {
+            mostrarPostulacion(id);
+        } else {
+            cout << "No se reconoce el tipo de identificador '" << id
+                 << "' para 'mostrar'. Usa CV_... o PT_...\n";
+        }
     }
 };
 
