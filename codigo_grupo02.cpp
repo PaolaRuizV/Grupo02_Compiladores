@@ -39,6 +39,35 @@ bool esFechaValida(const string &f) {
     return true;
 }
 
+// compara fechas dd/mm/yyyy: devuelve true si f1 <= f2
+bool fechaMenorOIgual(const string &f1, const string &f2) {
+    if (!esFechaValida(f1) || !esFechaValida(f2)) return true; // ya se aviso antes
+
+    int d1 = stoi(f1.substr(0,2));
+    int m1 = stoi(f1.substr(3,2));
+    int y1 = stoi(f1.substr(6,4));
+
+    int d2 = stoi(f2.substr(0,2));
+    int m2 = stoi(f2.substr(3,2));
+    int y2 = stoi(f2.substr(6,4));
+
+    if (y1 != y2) return y1 < y2;
+    if (m1 != m2) return m1 < m2;
+    return d1 <= d2;
+}
+
+// fecha actual del sistema en formato dd/mm/yyyy
+string fechaActualSistema() {
+    time_t t = time(nullptr);
+    tm *lt = localtime(&t);
+    int d = lt->tm_mday;
+    int m = lt->tm_mon + 1;
+    int y = lt->tm_year + 1900;
+    char buf[11];
+    snprintf(buf, sizeof(buf), "%02d/%02d/%04d", d, m, y);
+    return string(buf);
+}
+
 string toLowerStr(string s) {
     for (auto &c : s) c = (char)tolower((unsigned char)c);
     return s;
@@ -524,6 +553,13 @@ string construirPTDesdeCV(const string &cvId) {
     return "PT_" + cod;
 }
 
+bool ofertaActiva(const Oferta &o) {
+    if (o.fechamaxima.empty() || !esFechaValida(o.fechamaxima)) return true;
+    string hoy = fechaActualSistema();
+    if (!esFechaValida(hoy)) return true; // fallback
+    return fechaMenorOIgual(hoy, o.fechamaxima); // hoy <= fechamaxima
+}
+
 // =================== FUNCIONES SEMANTICAS ==============
 
 void registrarEstudianteEnTabla(Estudiante e) {
@@ -586,6 +622,12 @@ void registrarPostulacion(const string &ofId, const string &ptId) {
         cout << "Error: la oferta '" << ofId << "' no existe.\n";
         return;
     }
+    const Oferta &o = ofertas[ofId];
+    if (!ofertaActiva(o)) {
+        cout << "Error: la oferta " << ofId
+             << " ya no esta activa (fechamaxima " << o.fechamaxima << ").\n";
+        return;
+    }
     postulaciones[ptId].ofertas.push_back(ofId);
     cout << "Oferta " << ofId << " asignada a postulacion " << ptId << ".\n";
 }
@@ -606,7 +648,7 @@ void crearCVVacio(const string &cvId) {
     cout << "CV " << cvId << " creado con campos vacios.\n";
 }
 
-// ------- HTML ATS (se mantiene igual) ---------
+// ------- HTML ATS ---------
 
 void generarCVHtml(const string &cvId, const string &ofId) {
     string nombreArchivo = cvId + string("_ATS.html");
@@ -717,7 +759,7 @@ void generarCVHtml(const string &cvId, const string &ofId) {
         out << "<p>None</p>\n\n";
     }
 
-    // EXPERIENCIA LABORAL
+    // EXPERIENCIA
     out << "<div class=\"section-title\">EXPERIENCIA</div>\n";
     out << "<hr>\n\n";
 
@@ -763,6 +805,13 @@ void evaluarCompatibilidadCVOferta(const string &cvId, const string &ofId) {
         return;
     }
 
+    auto &of = ofertas[ofId];
+    if (!ofertaActiva(of)) {
+        cout << "Error: la oferta " << ofId
+             << " ya no esta activa (fechamaxima " << of.fechamaxima << ").\n";
+        return;
+    }
+
     string cod = extraerCodigoDesdeCV(cvId);
     if (cod.empty() || !estudiantes.count(cod)) {
         cout << "Error: no se puede evaluar " << cvId
@@ -772,7 +821,6 @@ void evaluarCompatibilidadCVOferta(const string &cvId, const string &ofId) {
     }
 
     auto &cv = cvs[cvId];
-    auto &of = ofertas[ofId];
 
     set<string> habOferta(of.habilidades.begin(), of.habilidades.end());
     set<string> habCV;
@@ -820,7 +868,7 @@ void evaluarCompatibilidadCVOferta(const string &cvId, const string &ofId) {
     }
 }
 
-// ------ NUEVO: mostrar CV en formato CV consola + mostrar PT -------
+// ------ mostrar CV en consola + mostrar PT -------
 
 void mostrarCV(const string &cvId) {
     if (!cvs.count(cvId)) {
@@ -828,7 +876,6 @@ void mostrarCV(const string &cvId) {
         return;
     }
 
-    // Obtener estudiante
     string cod = extraerCodigoDesdeCV(cvId);
     const Estudiante* est = nullptr;
     auto itEst = estudiantes.find(cod);
@@ -838,10 +885,8 @@ void mostrarCV(const string &cvId) {
 
     auto &cv = cvs[cvId];
 
-    // Nombre
     cout << (est ? est->nombre : cvId) << "\n";
 
-    // Contacto
     if (est) {
         bool printed = false;
         if (!est->correo.empty()) {
@@ -857,7 +902,6 @@ void mostrarCV(const string &cvId) {
     }
     cout << "EDUCACION\n";
 
-    // EDUCACION
     if (cv.educaciones.empty()) {
         cout << "No se ha registrado educacion\n\n";
     } else {
@@ -872,7 +916,6 @@ void mostrarCV(const string &cvId) {
         cout << "\n";
     }
 
-    // EXPERIENCIA
     cout << "EXPERIENCIA\n";
     if (cv.experiencias.empty()) {
         cout << "No se ha registrado experiencia\n\n";
@@ -888,7 +931,6 @@ void mostrarCV(const string &cvId) {
         cout << "\n";
     }
 
-    // HABILIDADES (conjunto unico)
     set<string> habCV;
     for (auto &exId : cv.experiencias) {
         auto itEx = experiencias.find(exId);
@@ -907,8 +949,6 @@ void mostrarCV(const string &cvId) {
         }
     }
 }
-
-// mostrar PT_...
 
 void mostrarPostulacion(const string &ptId) {
     cout << "Postulaciones \n";
@@ -1261,6 +1301,27 @@ private:
                     consumir(PUNTO_Y_COMA, "Se esperaba ';' en campo desconocido de asignar");
                 }
             }
+
+            // Validacion de rangos de fechas (modo estricto)
+            if (esEdu && !ed.fechainicio.empty() && !ed.fechafin.empty()) {
+                if (!fechaMenorOIgual(ed.fechainicio, ed.fechafin)) {
+                    cout << "Error: en EDU " << ed.id
+                         << " fechainicio (" << ed.fechainicio
+                         << ") es mayor que fechafin (" << ed.fechafin
+                         << "). No se registrara la educacion.\n";
+                    aplicarSemantica = false;
+                }
+            }
+            if (esExp && !ex.fechainicio.empty() && !ex.fechafin.empty()) {
+                if (!fechaMenorOIgual(ex.fechainicio, ex.fechafin)) {
+                    cout << "Error: en EXP " << ex.id
+                         << " fechainicio (" << ex.fechainicio
+                         << ") es mayor que fechafin (" << ex.fechafin
+                         << "). No se registrara la experiencia.\n";
+                    aplicarSemantica = false;
+                }
+            }
+
             consumir(PUNTO_Y_COMA, "Se esperaba ';' al final del bloque asignar");
 
             if (esEdu && !esExp) {
