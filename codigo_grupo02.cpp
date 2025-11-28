@@ -201,7 +201,7 @@ public:
             char c = ver();
             if (c == '\0') break;
 
-            // CADENA entre comillas (por si acaso)
+            // CADENA entre comillas
             if (c == '"') {
                 obtener();
                 string s;
@@ -563,9 +563,12 @@ bool ofertaActiva(const Oferta &o) {
 // =================== FUNCIONES SEMANTICAS ==============
 
 void registrarEstudianteEnTabla(Estudiante e) {
+    bool valido = true;
+
     if (!esCodigoEstudianteValido(e.codigo)) {
         cout << "Error: codigo de estudiante '" << e.codigo
              << "' invalido (debe tener 7 digitos).\n";
+        valido = false;
     }
 
     string correoTrim = trim(e.correo);
@@ -574,13 +577,20 @@ void registrarEstudianteEnTabla(Estudiante e) {
     if (!terminaCon(correoLower, "@usil.pe")) {
         cout << "Advertencia: correo '" << e.correo
              << "' no termina en @usil.pe\n";
+        valido = false; // <- AHORA BLOQUEA EL REGISTRO
     } else {
         e.correo = correoTrim;
     }
 
     if (!esTelefonoValido(e.telefono)) {
-        cout << "Advertencia: telefono '" << e.telefono
+        cout << "Error: telefono '" << e.telefono
              << "' invalido (debe tener 9 digitos y empezar en 9).\n";
+        valido = false;
+    }
+
+    if (!valido) {
+        cout << "El estudiante no se ha registrado por errores en los datos.\n";
+        return;
     }
 
     estudiantes[e.codigo] = e;
@@ -1119,6 +1129,7 @@ private:
     void registrarOferta(const string &idOferta) {
         Oferta o;
         o.id = idOferta;
+        bool datosValidos = true;
 
         consumir(LLAVE_IZQ, "Se esperaba '{' en registrar oferta");
 
@@ -1179,9 +1190,10 @@ private:
                 } else {
                     v = leerHastaPuntoYComa();
                 }
-                if (!esFechaValida(v) && !v.empty()) {
-                    cout << "Advertencia: fechamaxima '" << v
-                         << "' no cumple formato dd/mm/yyyy.\n";
+                if (!v.empty() && !esFechaValida(v)) {
+                    cout << "Error: fechamaxima '" << v
+                         << "' no cumple formato dd/mm/yyyy. La oferta no se registrara.\n";
+                    datosValidos = false;
                 }
                 o.fechamaxima = v;
                 consumir(PUNTO_Y_COMA, "Se esperaba ';' despues de fechamaxima");
@@ -1191,6 +1203,12 @@ private:
             }
         }
         consumir(PUNTO_Y_COMA, "Se esperaba ';' al final del bloque oferta");
+
+        if (!datosValidos) {
+            cout << "La oferta " << o.id << " no se ha registrado por errores en los datos.\n";
+            return;
+        }
+
         registrarOfertaEnTabla(o);
     }
 
@@ -1263,17 +1281,26 @@ private:
                     } else {
                         v = leerHastaPuntoYComa();
                     }
+
+                    bool fechaValidaCampo = true;
                     if (!v.empty() && !esFechaValida(v)) {
-                        cout << "Advertencia: " << campo << " '" << v
-                             << "' no cumple formato dd/mm/yyyy.\n";
+                        cout << "Error: " << campo << " '" << v
+                             << "' no cumple formato dd/mm/yyyy. "
+                             << "No se registrara la asignacion " << id1 << ".\n";
+                        fechaValidaCampo = false;
+                        aplicarSemantica = false;
                     }
-                    if (campo == "fechainicio") {
-                        ed.fechainicio = v;
-                        ex.fechainicio = v;
-                    } else {
-                        ed.fechafin = v;
-                        ex.fechafin = v;
+
+                    if (fechaValidaCampo) {
+                        if (campo == "fechainicio") {
+                            ed.fechainicio = v;
+                            ex.fechainicio = v;
+                        } else {
+                            ed.fechafin = v;
+                            ex.fechafin = v;
+                        }
                     }
+
                     consumir(PUNTO_Y_COMA, "Se esperaba ';' despues de fecha");
                 } else if (campo == "habilidades") {
                     esExp = true;
@@ -1303,7 +1330,7 @@ private:
             }
 
             // Validacion de rangos de fechas (modo estricto)
-            if (esEdu && !ed.fechainicio.empty() && !ed.fechafin.empty()) {
+            if (aplicarSemantica && esEdu && !ed.fechainicio.empty() && !ed.fechafin.empty()) {
                 if (!fechaMenorOIgual(ed.fechainicio, ed.fechafin)) {
                     cout << "Error: en EDUCACION " << ed.id
                          << " fechainicio (" << ed.fechainicio
@@ -1312,7 +1339,7 @@ private:
                     aplicarSemantica = false;
                 }
             }
-            if (esExp && !ex.fechainicio.empty() && !ex.fechafin.empty()) {
+            if (aplicarSemantica && esExp && !ex.fechainicio.empty() && !ex.fechafin.empty()) {
                 if (!fechaMenorOIgual(ex.fechainicio, ex.fechafin)) {
                     cout << "Error: en EXPERIENCIA " << ex.id
                          << " fechainicio (" << ex.fechainicio
@@ -1323,6 +1350,12 @@ private:
             }
 
             consumir(PUNTO_Y_COMA, "Se esperaba ';' al final del bloque asignar");
+
+            if (!aplicarSemantica) {
+                cout << "La asignacion " << id1 << " a " << id2
+                     << " no se ha registrado por errores en fechas.\n";
+                return;
+            }
 
             if (esEdu && !esExp) {
                 registrarEducacionEnTabla(ed, aplicarSemantica);
@@ -1403,4 +1436,3 @@ int main() {
 
     return 0;
 }
-
