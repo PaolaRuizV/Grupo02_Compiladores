@@ -36,4 +36,5 @@ evaluar CV_2312227 para OF_001;
 mostrar CV_2312227;
 
 asignar OF_001 a PT_2312227;
-mostrar PT_2312227
+
+mostrar PT_2312227;
