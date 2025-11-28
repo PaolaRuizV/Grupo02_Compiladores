@@ -1305,7 +1305,7 @@ private:
             // Validacion de rangos de fechas (modo estricto)
             if (esEdu && !ed.fechainicio.empty() && !ed.fechafin.empty()) {
                 if (!fechaMenorOIgual(ed.fechainicio, ed.fechafin)) {
-                    cout << "Error: en EDU " << ed.id
+                    cout << "Error: en EDUCACION " << ed.id
                          << " fechainicio (" << ed.fechainicio
                          << ") es mayor que fechafin (" << ed.fechafin
                          << "). No se registrara la educacion.\n";
@@ -1314,7 +1314,7 @@ private:
             }
             if (esExp && !ex.fechainicio.empty() && !ex.fechafin.empty()) {
                 if (!fechaMenorOIgual(ex.fechainicio, ex.fechafin)) {
-                    cout << "Error: en EXP " << ex.id
+                    cout << "Error: en EXPERIENCIA " << ex.id
                          << " fechainicio (" << ex.fechainicio
                          << ") es mayor que fechafin (" << ex.fechafin
                          << "). No se registrara la experiencia.\n";
@@ -1403,3 +1403,4 @@ int main() {
 
     return 0;
 }
+
